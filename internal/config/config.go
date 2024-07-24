@@ -8,9 +8,13 @@ import (
 )
 
 type Config struct {
-	Port        string `json:"port"`
-	LengthLimit int    `json:"lengthLimit"`
-	APIKey      string `json:"api_key"`
+	Port           string `json:"port"`
+	ApiKey         string `json:"api_key"`
+	LengthLimit    int    `json:"lengthLimit"`
+	GetBlockParams struct {
+		Jsonrpc string `json:"jsonrpc"`
+		Id      string `json:"id"`
+	} `json:"getBlockParams"`
 }
 
 func Load() *Config {

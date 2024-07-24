@@ -1,5 +1,9 @@
 {
   "port": ":8080",
-  "api_key": "your_api_key",
-  "lengthLimit": 100
+  "api_key": "api_key",
+  "lengthLimit": 100,
+  "getBlockParams": {
+    "jsonrpc": "2.0",
+    "id": "getblock.io"
+  }
 }

@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"math/big"
 	"net/http"
@@ -10,19 +11,44 @@ import (
 	"getBlockTest/internal/models"
 )
 
-func (s *Server) analyzeBlocks(latestBlockNumber string) *models.AddressChange {
-	latestBlockNumInt := s.parseBlockNumber(latestBlockNumber)
-	balanceChanges := s.calculateBalanceChanges(latestBlockNumInt)
-	return s.findMaxChange(balanceChanges)
+func (s *Server) GetMostChangedAddressHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		log.Println("Method not allowed. Method :", r.Method)
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	blockNumber, err := s.Adapter.GetLatestBlockNumber()
+	if err != nil {
+		log.Println("Error getting latest block number:", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	addressChange, err := s.analyzeBlocks(blockNumber)
+	if err != nil {
+		log.Println("Error analyzing block number:", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(addressChange)
+	if err != nil {
+		log.Println("Error encoding address change:", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
-func (s *Server) parseBlockNumber(latestBlockNumber string) *big.Int {
-	latestBlockNum := new(big.Int)
-	latestBlockNum.SetString(latestBlockNumber[2:], 16)
-	return latestBlockNum
+func (s *Server) analyzeBlocks(latestBlockNumber string) (*models.AddressChange, error) {
+	latestBlockNumInt := parseBlockNumber(latestBlockNumber)
+	balanceChanges, err := s.calculateBalanceChanges(latestBlockNumInt)
+	if err != nil {
+		return nil, fmt.Errorf("error calculating balance changes: %w", err)
+	}
+	return findMaxChange(balanceChanges), nil
 }
 
-func (s *Server) calculateBalanceChanges(latestBlockNumInt *big.Int) map[string]*big.Int {
+func (s *Server) calculateBalanceChanges(latestBlockNumInt *big.Int) (map[string]*big.Int, error) {
 	balanceChanges := make(map[string]*big.Int)
 	var blockNumInt *big.Int
 
@@ -30,16 +56,15 @@ func (s *Server) calculateBalanceChanges(latestBlockNumInt *big.Int) map[string]
 		blockNumInt = new(big.Int).Sub(latestBlockNumInt, big.NewInt(int64(i)))
 		block, err := s.Adapter.GetBlockByNumber(common.IntToHex(blockNumInt))
 		if err != nil {
-			log.Println("Error getting block:", err)
-			continue
+			return nil, fmt.Errorf("error getting block:%w", err)
 		}
 
-		s.processTransactions(block["transactions"].([]interface{}), balanceChanges)
+		processTransactions(block["transactions"].([]interface{}), balanceChanges)
 	}
-	return balanceChanges
+	return balanceChanges, nil
 }
 
-func (s *Server) processTransactions(transactions []interface{}, balanceChanges map[string]*big.Int) {
+func processTransactions(transactions []interface{}, balanceChanges map[string]*big.Int) {
 	for _, tx := range transactions {
 		txMap := tx.(map[string]interface{})
 
@@ -49,14 +74,14 @@ func (s *Server) processTransactions(transactions []interface{}, balanceChanges 
 		value := new(big.Int)
 		value.SetString(valueHex[2:], 16)
 
-		s.updateBalance(balanceChanges, from, value, false)
+		updateBalance(balanceChanges, from, value, false)
 		if toExists && to != "" {
-			s.updateBalance(balanceChanges, to, value, true)
+			updateBalance(balanceChanges, to, value, true)
 		}
 	}
 }
 
-func (s *Server) updateBalance(balanceChanges map[string]*big.Int, address string, value *big.Int, isAdd bool) {
+func updateBalance(balanceChanges map[string]*big.Int, address string, value *big.Int, isAdd bool) {
 	if balanceChanges[address] == nil {
 		balanceChanges[address] = big.NewInt(0)
 	}
@@ -67,7 +92,13 @@ func (s *Server) updateBalance(balanceChanges map[string]*big.Int, address strin
 	}
 }
 
-func (s *Server) findMaxChange(balanceChanges map[string]*big.Int) *models.AddressChange {
+func parseBlockNumber(latestBlockNumber string) *big.Int {
+	latestBlockNum := new(big.Int)
+	latestBlockNum.SetString(latestBlockNumber[2:], 16)
+	return latestBlockNum
+}
+
+func findMaxChange(balanceChanges map[string]*big.Int) *models.AddressChange {
 	maxChangeAddress := ""
 	maxChangeValue := new(big.Int)
 	for addr, change := range balanceChanges {
@@ -77,19 +108,4 @@ func (s *Server) findMaxChange(balanceChanges map[string]*big.Int) *models.Addre
 		}
 	}
 	return &models.AddressChange{Address: maxChangeAddress, Change: maxChangeValue}
-}
-
-func (s *Server) GetMostChangedAddressHandler(w http.ResponseWriter, r *http.Request) {
-	blockNumber, err := s.Adapter.GetLatestBlockNumber()
-	if err != nil {
-		log.Println("Error getting latest block number:", err)
-		return
-	}
-
-	addressChange := s.analyzeBlocks(blockNumber)
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(addressChange); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
 }

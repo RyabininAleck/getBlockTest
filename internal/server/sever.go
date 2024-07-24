@@ -27,7 +27,7 @@ func (s *Server) Run() {
 
 	mux.HandleFunc("/most-changed-address", s.GetMostChangedAddressHandler)
 
-	handler := recoverMiddleware(mux)
+	handler := recoverMiddleware(loggingMiddleware(mux))
 
 	log.Printf("Server is running on port %s\n", s.Port)
 	err := http.ListenAndServe(s.Port, handler)

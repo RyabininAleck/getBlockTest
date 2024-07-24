@@ -8,63 +8,77 @@ import (
 	"net/http"
 
 	"getBlockTest/internal/config"
+	"getBlockTest/internal/models"
 )
 
 const (
 	getBlockNumberURLFormat = "https://go.getblock.io/%s/"
-	getLastBlockBody        = `{"jsonrpc": "2.0","method": "eth_blockNumber","params": [],"id": "getblock.io"}`
-	getBlockByNumBodyFormat = `{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["%s", true],"id":"getblock.io"}`
+	getLastBlockMethod      = "eth_blockNumber"
+	getBlockByNumMethod     = "eth_getBlockByNumber"
 )
 
 func Create(config *config.Config) *Adapter {
-	return &Adapter{apiKey: config.APIKey}
+	return &Adapter{apiKey: config.ApiKey, jsonRPCVersion: config.GetBlockParams.Jsonrpc, id: config.GetBlockParams.Id}
 }
 
 type Adapter struct {
-	apiKey string
-}
-
-func (a *Adapter) GetLatestBlockNumber() (string, error) {
-	getBlockNumberURL := fmt.Sprintf(getBlockNumberURLFormat, a.apiKey)
-	req, err := http.NewRequest("POST", getBlockNumberURL, bytes.NewBuffer([]byte(getLastBlockBody)))
-	if err != nil {
-		return "", err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("error: received status code %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	var result map[string]interface{}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return "", err
-	}
-
-	return result["result"].(string), nil
+	apiKey         string
+	jsonRPCVersion string
+	id             string
 }
 
 func (a *Adapter) GetBlockByNumber(blockNumber string) (map[string]interface{}, error) {
-	getBlockNumberURL := fmt.Sprintf(getBlockNumberURLFormat, a.apiKey)
-	payload := []byte(fmt.Sprintf(getBlockByNumBodyFormat, blockNumber))
+	requestBody := &models.JSONRPCRequest{
+		JSONRPC: a.jsonRPCVersion,
+		Method:  getBlockByNumMethod,
+		Params:  []interface{}{blockNumber, true},
+		ID:      a.id,
+	}
 
-	req, err := http.NewRequest("POST", getBlockNumberURL, bytes.NewBuffer(payload))
+	result, err := a.sendRequest(requestBody)
 	if err != nil {
 		return nil, err
+	}
+
+	blockResult, ok := result["result"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("unexpected response format: %v", result)
+	}
+
+	return blockResult, nil
+}
+
+func (a *Adapter) GetLatestBlockNumber() (string, error) {
+	requestBody := &models.JSONRPCRequest{
+		JSONRPC: a.jsonRPCVersion,
+		Method:  getLastBlockMethod,
+		Params:  []interface{}{},
+		ID:      a.id,
+	}
+
+	result, err := a.sendRequest(requestBody)
+	if err != nil {
+		return "", err
+	}
+
+	blockNumber, ok := result["result"].(string)
+	if !ok {
+		return "", fmt.Errorf("unexpected response format: %v", result)
+	}
+
+	return blockNumber, nil
+}
+
+func (a *Adapter) sendRequest(body *models.JSONRPCRequest) (map[string]interface{}, error) {
+	jsonData, err := body.ToJSON()
+	if err != nil {
+		return nil, fmt.Errorf("Error creating JSON: %w", err)
+	}
+
+	url := fmt.Sprintf(getBlockNumberURLFormat, a.apiKey)
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create new request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -72,23 +86,23 @@ func (a *Adapter) GetBlockByNumber(blockNumber string) (map[string]interface{}, 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("error: received status code %d", resp.StatusCode)
+		return nil, fmt.Errorf("unexpected status code %d from server", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	var result map[string]interface{}
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, err
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
-	return result["result"].(map[string]interface{}), nil
+	return result, nil
 }

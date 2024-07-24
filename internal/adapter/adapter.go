@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"getBlockTest/internal/config"
-	"getBlockTest/internal/models"
 )
 
 const (
@@ -27,8 +26,19 @@ type Adapter struct {
 	id             string
 }
 
+type JSONRPCRequest struct {
+	JSONRPC string        `json:"jsonrpc"`
+	Method  string        `json:"method"`
+	Params  []interface{} `json:"params"`
+	ID      string        `json:"id"`
+}
+
+func (req *JSONRPCRequest) ToJSON() ([]byte, error) {
+	return json.Marshal(req)
+}
+
 func (a *Adapter) GetBlockByNumber(blockNumber string) (map[string]interface{}, error) {
-	requestBody := &models.JSONRPCRequest{
+	requestBody := &JSONRPCRequest{
 		JSONRPC: a.jsonRPCVersion,
 		Method:  getBlockByNumMethod,
 		Params:  []interface{}{blockNumber, true},
@@ -49,7 +59,7 @@ func (a *Adapter) GetBlockByNumber(blockNumber string) (map[string]interface{}, 
 }
 
 func (a *Adapter) GetLatestBlockNumber() (string, error) {
-	requestBody := &models.JSONRPCRequest{
+	requestBody := &JSONRPCRequest{
 		JSONRPC: a.jsonRPCVersion,
 		Method:  getLastBlockMethod,
 		Params:  []interface{}{},
@@ -69,7 +79,7 @@ func (a *Adapter) GetLatestBlockNumber() (string, error) {
 	return blockNumber, nil
 }
 
-func (a *Adapter) sendRequest(body *models.JSONRPCRequest) (map[string]interface{}, error) {
+func (a *Adapter) sendRequest(body *JSONRPCRequest) (map[string]interface{}, error) {
 	jsonData, err := body.ToJSON()
 	if err != nil {
 		return nil, fmt.Errorf("Error creating JSON: %w", err)

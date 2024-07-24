@@ -8,8 +8,12 @@ import (
 	"net/http"
 
 	"getBlockTest/internal/common"
-	"getBlockTest/internal/models"
 )
+
+type AddressChange struct {
+	Address string   `json:"address"`
+	Change  *big.Int `json:"change"`
+}
 
 func (s *Server) GetMostChangedAddressHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -39,7 +43,7 @@ func (s *Server) GetMostChangedAddressHandler(w http.ResponseWriter, r *http.Req
 	}
 }
 
-func (s *Server) analyzeBlocks(latestBlockNumber string) (*models.AddressChange, error) {
+func (s *Server) analyzeBlocks(latestBlockNumber string) (*AddressChange, error) {
 	latestBlockNumInt := parseBlockNumber(latestBlockNumber)
 	balanceChanges, err := s.calculateBalanceChanges(latestBlockNumInt)
 	if err != nil {
@@ -98,7 +102,7 @@ func parseBlockNumber(latestBlockNumber string) *big.Int {
 	return latestBlockNum
 }
 
-func findMaxChange(balanceChanges map[string]*big.Int) *models.AddressChange {
+func findMaxChange(balanceChanges map[string]*big.Int) *AddressChange {
 	maxChangeAddress := ""
 	maxChangeValue := new(big.Int)
 	for addr, change := range balanceChanges {
@@ -107,5 +111,5 @@ func findMaxChange(balanceChanges map[string]*big.Int) *models.AddressChange {
 			maxChangeValue.Set(change)
 		}
 	}
-	return &models.AddressChange{Address: maxChangeAddress, Change: maxChangeValue}
+	return &AddressChange{Address: maxChangeAddress, Change: maxChangeValue}
 }

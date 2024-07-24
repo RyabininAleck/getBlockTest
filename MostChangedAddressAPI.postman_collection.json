@@ -1,0 +1,29 @@
+{
+  "info": {
+    "name": "Most Changed Address API",
+    "_postman_id": "a3d0f840-9b3d-11ec-b909-0242ac120002",
+    "description": "API для получения адреса с наибольшим изменением баланса за последние 100 блоков",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Get Most Changed Address",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8080/most-changed-address",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "8080",
+          "path": [
+            "most-changed-address"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}

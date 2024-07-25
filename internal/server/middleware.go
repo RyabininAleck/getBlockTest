@@ -4,18 +4,17 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"time"
 )
 
-// Логирующее middleware
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		body, _ := ioutil.ReadAll(r.Body)
-		r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+		body, _ := io.ReadAll(r.Body)
+		r.Body = io.NopCloser(bytes.NewBuffer(body))
 
 		logEntry := map[string]interface{}{
 			"time":         start.Format(time.RFC3339),
@@ -25,10 +24,8 @@ func loggingMiddleware(next http.Handler) http.Handler {
 			"request_body": string(body),
 		}
 
-		// Обертка для записи статуса и ответа
 		rec := &responseRecorder{ResponseWriter: w, statusCode: http.StatusOK, responseBody: new(bytes.Buffer)}
 
-		// Вызов следующего обработчика
 		next.ServeHTTP(rec, r)
 
 		duration := time.Since(start)
@@ -41,13 +38,6 @@ func loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// Пример основного обработчика
-func helloHandler(w http.ResponseWriter, r *http.Request) {
-	response := map[string]string{"message": "Hello, world!"}
-	json.NewEncoder(w).Encode(response)
-}
-
-// Обертка для записи статуса и ответа
 type responseRecorder struct {
 	http.ResponseWriter
 	statusCode   int
@@ -64,7 +54,6 @@ func (rec *responseRecorder) Write(b []byte) (int, error) {
 	return rec.ResponseWriter.Write(b)
 }
 
-// recoverMiddleware для перехвата паники и логирования ошибки
 func recoverMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {

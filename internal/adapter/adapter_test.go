@@ -9,7 +9,7 @@ func TestJSONRPCRequest_ToJSON(t *testing.T) {
 	tests := []struct {
 		name     string
 		request  JSONRPCRequest
-		expected string //[]byte
+		expected string
 		wantErr  bool
 	}{
 		{
